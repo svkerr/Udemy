@@ -93,4 +93,52 @@ sqrt(mean(sqerr2[is.test]))
 # Random Forest looks better in training, but may be slightly worse in test.
 
 #### Logistic Regression
+# Lecture 12
+d <- read.table("abalone.data.txt", header=FALSE, sep=",", stringsAsFactors=TRUE)
+# add column names
+colnames(d) <- c('Sex', 'Length', 'Diameter', 'Height', 'WholeWeight', 'ShuckedWeight', 'VisceraWeight',
+                  'ShellWeight', 'Rings')
+str(d)
+# Define a 'binary' variable (Rings is raw outcome variable, need to change it)
+d$old <- d$Rings >= 10
+table(d$old)/nrow(d)
 
+# Look at abalone sex
+tab <- table(truth=d$Rings, sex=d$Sex)
+rs <- rowSums(tab)
+tab/rs
+
+# Now do the test/train split for reproducibility
+set.seed(2352) 
+# 25% withheld for test and put the label back into the data frame
+d$isTest <- runif(nrow(d)) < 0.25
+d$dataLabel <- ifelse(d$isTest, "test data", "train data")
+
+# Try a non-invasive prediction procedure first. Only the measurements we can take without dissecting the abalone.
+nonInvasiveVars <-c('Sex', 'Length', 'Diameter', 'Height', 'WholeWeight')
+# The model formula
+fNonInvasive <- paste('old', paste(nonInvasiveVars, collapse='+'), sep='~')
+fNonInvasive
+
+#Run the Model
+model1 <- glm(fNonInvasive, data=d[!d$isTest,], family=binomial(link='logit'))
+summary(model1)
+# Let's see how prediction turned out
+d$model1 <- predict(model1, newdata=d, type='response')
+head(d[,c('old', 'model1')])
+
+# Calculate pseudo-R-Squared on training data - amount of variance accounted for by the model
+1 - model1$deviance/model1$null.deviance # same as (nd - md)/nd
+# Model explains 28 % of deviance which isn't great
+
+# Plot predictions for training data
+dtrain = d[!d$isTest,]  # makes the following calls easier
+ggplot(dtrain, aes(x=model1, color=old)) + geom_density()
+# Overlap of curves shows a lot of misclassification going on
+
+# If we just wanted to simply directly classify any model1 pred > 0.5 is old we get the following:
+cmat <- table(truth=dtrain$old, pred=dtrain$model1 > 0.5)
+cmat
+# Calculate the accuracy of this direct classifying model:
+accuracy <- (cmat[1,1] + cmat[2,2])/sum(cmat)
+accuracy
